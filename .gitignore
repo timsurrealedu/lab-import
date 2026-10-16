@@ -1,0 +1,42 @@
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Python bytecode & packaging
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing & tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / Editor files
+.DS_Store
+*.swp
+*~
+
+# VM artifacts & logs (never commit disk images or archives)
+*.vmdk
+*.qcow2
+*.vmem
+*.vmsd
+*.vmx
+*.vmxf
+*.nvram
+*.iso
+*.flp
+*.zip
+*.7z
+*.ova
+*.tar
+*.tar.gz
+*.tgz

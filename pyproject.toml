@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lab-import"
+version = "1.0.0"
+description = "Automated Virtual Machine Lab Importer from VMware to QEMU/KVM & libvirt for Linux penetration testing labs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "timsurreal"}
+]
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+lab = "lab_import.cli:lab_group"
+lab-import = "lab_import.cli:import_main"
+lab-list = "lab_import.cli:list_main"
+lab-start = "lab_import.cli:start_main"
+lab-stop = "lab_import.cli:stop_main"
+lab-info = "lab_import.cli:info_main"
+lab-remove = "lab_import.cli:remove_main"
+lab-network = "lab_import.cli:network_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "-v --tb=short"
