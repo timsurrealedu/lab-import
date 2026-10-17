@@ -97,7 +97,34 @@ def execute_import_plan(
             step_callback(msg)
 
     try:
-        # 1. Check free space across all planned disks
+        # 1. Verify KVM acceleration early before converting disks (when connected to live libvirt)
+        if conn is not None and hasattr(conn, "getCapabilities"):
+            try:
+                caps = conn.getCapabilities()
+                if "domain type='kvm'" not in caps and 'domain type="kvm"' not in caps:
+                    cpu_mod = "kvm_amd"
+                    try:
+                        with open("/proc/cpuinfo") as f:
+                            if "GenuineIntel" in f.read():
+                                cpu_mod = "kvm_intel"
+                    except Exception:
+                        pass
+                    raise LibvirtOperationError(
+                        "KVM hardware acceleration is not active in libvirt (/dev/kvm is missing or disabled).",
+                        hint=(
+                            f"QEMU/KVM requires the KVM kernel module.\n"
+                            f"  1. Load KVM: sudo modprobe {cpu_mod}\n"
+                            f"  2. Restart libvirtd: sudo systemctl restart libvirtd\n"
+                            f"  3. (Optional) Auto-load on boot: echo '{cpu_mod}' | sudo tee /etc/modules-load.d/kvm.conf\n"
+                            f"Note: If VMware Workstation is currently running, its 'vmmon' driver might conflict with AMD-V."
+                        ),
+                    )
+            except LibvirtOperationError:
+                raise
+            except Exception as e:
+                logger.debug("Failed to query libvirt capabilities for KVM: %s", e)
+
+        # 2. Check free space across all planned disks
         total_required = sum(
             max(d.source_vmdk.actual_size_bytes, 64 * 1024 * 1024) for d in plan.disks
         )
@@ -106,11 +133,11 @@ def execute_import_plan(
                 plan.disks[0].target_path.parent, total_required
             )
 
-        # 2. If replacing an existing domain, remove its old definition/disks first
+        # 3. If replacing an existing domain, remove its old definition/disks first
         if replace_existing and conn is not None:
             _remove_existing_domain_for_replace(conn, plan.vm_name)
 
-        # 3. Ensure isolated lab network is configured and active
+        # 4. Ensure isolated lab network is configured and active
         if plan.lab_network is not None and conn is not None:
             ensure_lab_network_active(conn, plan.lab_network)
             _notify("Isolated lab network configured")
@@ -188,8 +215,26 @@ def execute_import_plan(
                 defined_domain = conn.defineXML(domain_xml)
                 domain_uuid = defined_domain.UUIDString()
             except Exception as exc:
+                err_msg = str(exc)
+                hint = None
+                if "does not support virt type 'kvm'" in err_msg:
+                    cpu_mod = "kvm_amd"
+                    try:
+                        with open("/proc/cpuinfo") as f:
+                            if "GenuineIntel" in f.read():
+                                cpu_mod = "kvm_intel"
+                    except Exception:
+                        pass
+                    hint = (
+                        f"KVM hardware acceleration is not active (/dev/kvm is missing or disabled).\n"
+                        f"  1. Load the KVM module: sudo modprobe {cpu_mod}\n"
+                        f"  2. Restart libvirtd: sudo systemctl restart libvirtd\n"
+                        f"  3. (Optional) Auto-load on boot: echo '{cpu_mod}' | sudo tee /etc/modules-load.d/kvm.conf\n"
+                        f"Note: If VMware Workstation is currently running, its 'vmmon' driver might conflict with AMD-V."
+                    )
                 raise LibvirtOperationError(
-                    f"Failed to register domain {plan.vm_name!r} with libvirt: {exc}"
+                    f"Failed to register domain {plan.vm_name!r} with libvirt: {exc}",
+                    hint=hint,
                 ) from exc
         else:
             root = ET.fromstring(domain_xml)
